@@ -1,9 +1,12 @@
 from bs4 import BeautifulSoup
 
+urlAEMET= 'http://www.aemet.es'
+urlValClima = 'http://www.aemet.es/es/serviciosclimaticos/datosclimatologicos/valoresclimatologicos'
+
 def download(url):
 	import urllib.request
 	import urllib.error
-	#print ('Downloading:', url)  Descomentar!!!
+	print ('Downloading:', url)  
 	try:
 		html = urllib.request.urlopen(url).read()
 	except urllib.error.URLError as e:
@@ -21,8 +24,8 @@ def EscribeFichero(ParListaValores,ParFilename,ParModo):
 		for Valor in ParListaValores:
 			writer.writerow(Valor)
 			
-def ObtenerComunidades(ParListaComunidades,ParURL):
-	html = download(ParURL)
+def ObtenerComunidades(ParListaComunidades):
+	html = download(urlValClima)
     #ParListaComunidades=list() # inicializamos Matriz que alojara los datos
 	soup = BeautifulSoup(html,'html.parser') 
 	body = soup.find('body')
@@ -39,10 +42,9 @@ def ObtenerComunidades(ParListaComunidades,ParURL):
 		#FilaValores.append(option.string)
 		ParListaComunidades.append(value)
 	  
-def ObtenerEstacionesComunidad(ParListaEstaciones,ParComunidad, ParURL):
-	html = download(ParURL)
-	#print('Aqui:'+ParURL)
-	#ParListaEstaciones=list() # inicializamos Matriz que alojara los datos
+def ObtenerEstacionesComunidad(ParListaEstaciones,ParComunidad):
+	URLComunidad=urlValClima + '?k=' + ParComunidad  
+	html = download(URLComunidad)
 	soup = BeautifulSoup(html,'html.parser') 
 	tabla = soup.find('table')
 	body = tabla.find('tbody') 
@@ -55,66 +57,39 @@ def ObtenerEstacionesComunidad(ParListaEstaciones,ParComunidad, ParURL):
 		#print(th)
 		a = th.find('a')
 		href=a['href']   # URL, sin http://www.aemet.es 
-		#print(a.string)  #  nombre de la estacion
-		#print(href)
-		#print(a.attrs)
-		FilaValores.append(a.string)
-		FilaValores.append(urlAEMET+href)
+		FilaValores.append(a.string) # Nombre de la estacion
+		FilaValores.append(urlAEMET+href) # URL completo
 		ParListaEstaciones.append(FilaValores)
 		
-def ObtenerDatosEstacion(ParDatosEstacion, ParURL,ParEstacion,ParComunidad):
+def ObtenerDatosEstacion(ParDatosEstacion, ParURL,ParEstacion,ParComunidad,ParEncabezado):
 	html = download(ParURL)
 	#print(html)
 	soup = BeautifulSoup(html,'html.parser') 
 	tabla = soup.find('table')
-	# encabezados
-	header = tabla.find('thead') 
-	#print("Header==============>>>")
-	#print (header) # Muestra todas los encabezados
-	ths=header.findAll('th')
-	FilaValores=list()
-	FilaValores.append(ParEstacion)
-	FilaValores.append(ParComunidad)
-	for th in ths:
-		#print (th.string)
-		FilaValores.append(th.string)
-	ParDatosEstacion.append(FilaValores)
-	# encabezados FIN
+	# Encabezado
+	if ParEncabezado:
+		header = tabla.find('thead') 
+		ths=header.findAll('th')
+		FilaValores=list()
+		FilaValores.append('Comunidad')
+		FilaValores.append('Estacion')
+		for th in ths:
+			FilaValores.append(th.string)
+		ParDatosEstacion.append(FilaValores)		
+	# Encabezado FIN
+	
+	# Recorremos body para extraer datos
 	body = tabla.find('tbody') 
 	ths = body.findAll('th')
-	trs= body.findAll('tr')
-
-	# Recorremos body para extraer datos
+	trs= body.findAll('tr')	
 	for tr in trs:
 		FilaValores=list()
 		th = tr.find('th')
-		#print(th)
 		mes = th.string
-		#print(mes)
+		FilaValores.append(ParComunidad)
+		FilaValores.append(ParEstacion.replace(","," ")) # Sustituimos "," en nombre estacion
 		FilaValores.append(mes)
 		tds = tr.findAll('td')
-		#print (tds)
 		for td in tds:
-			#print (td.string)
 			FilaValores.append(td.string)
 		ParDatosEstacion.append(FilaValores)
-		
-# A continuacion lo que iria en el main
-urlAEMET= 'http://www.aemet.es'
-url2 = 'http://www.aemet.es/es/serviciosclimaticos/datosclimatologicos/valoresclimatologicos?l=3129&k=mad'  #borrar
-url1 = 'http://www.aemet.es/es/serviciosclimaticos/datosclimatologicos/valoresclimatologicos?k=mad'#borrar
-urlClima = 'http://www.aemet.es/es/serviciosclimaticos/datosclimatologicos/valoresclimatologicos'
-
-NombreFichero = "DatosClimaNew.csv"
-ListaComunidades=list()
-ObtenerComunidades(ListaComunidades,urlClima) # Construimos lista de comunidades
-DatosEstacion=list()
-for Comunidad in ListaComunidades[1:]: #Omitimos 1er valor
-	ListaEstaciones=list()
-	URLComunidad=urlClima + '?k=' +Comunidad  # Revisar!!
-	#print(URLComunidad)
-	ObtenerEstacionesComunidad(ListaEstaciones,Comunidad, URLComunidad) # Construimos lista de estaciones de una comunidad
-	for Estacion in ListaEstaciones:
-		URLEstacion= Estacion[1] 
-		ObtenerDatosEstacion(DatosEstacion, URLEstacion,Estacion[0],Comunidad) # Obtenemos datos climatologicos de una estacion
-EscribeFichero(DatosEstacion,NombreFichero,'w')
